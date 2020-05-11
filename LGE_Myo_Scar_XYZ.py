@@ -1,50 +1,27 @@
-'''
-Created on Wed Oct 31 10:00:57 2018
-
-@author: Fatemeh
-'''
-#%%
+#%% Import required libraries
 
 import numpy
 from PIL import Image
-from numpy import *
-import math
-import sklearn
-from sklearn.utils import shuffle
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.metrics import f1_score, accuracy_score, precision_score, recall_score
-from sklearn.mixture import GaussianMixture
 import scipy
-from scipy.ndimage.interpolation import zoom
-from skimage.measure import block_reduce
-import skimage
 from skimage import morphology
-from skimage.morphology import erosion
 from keras.models import Model, load_model
-from keras.layers import Input
-from keras.layers.core import Dense, Dropout, Activation, Flatten
+from keras.layers.core import Dropout
 from keras.layers.merge import concatenate
-#from keras import backend as K
-from keras.models import *
-from keras.layers import Input, merge, Conv2D, MaxPooling2D, UpSampling2D, Cropping2D, ZeroPadding2D
+from keras.layers import Input, Conv2D, MaxPooling2D, UpSampling2D
 from keras.layers.normalization import BatchNormalization
-from keras.optimizers import *
-from keras.optimizers import Adam
 from keras.callbacks import ModelCheckpoint, LearningRateScheduler, EarlyStopping
 import nibabel as nib
-import tensorflow
 import glob
 from matplotlib import pyplot as plt
-import time
 
-path1 = r'D:\Projects\FullyAuto_Scar_Unet\LGE Cardiac MRI\LGE Images nii'
+path1 = r'Please provide the path where the 3D LGE CMRIs in the .nii format are located.'
 LGEs = glob.glob(path1 + "/*")
 
-path2 = r'D:\Projects\FullyAuto_Scar_Unet\LGE Cardiac MRI\segmented myo multi-planar'
+path2 = r'Please provide the path where the myocardial masks created from our algorithm are located.'
 MYOs = glob.glob(path2 + "/*")
 
-path3 = r'D:\Projects\FullyAuto_Scar_Unet\LGE Cardiac MRI\Scar Masks nii'
+path3 = r'Please provide the path where the ground truth of scar tissue in the .nii format are located.'
 SCARs = glob.glob(path3 + "/*")
 
 #%
@@ -58,9 +35,9 @@ def dice_coef(y_true, y_pred):
 def dice_coef_loss(y_true, y_pred):
     return -dice_coef(y_true, y_pred)
 #%
-scar_xy_model = load_model('scar_fcn3.hdf5', custom_objects={'dice_coef': dice_coef,'dice_coef_loss': dice_coef_loss})
-scar_xz_model = load_model('scar_xz1.hdf5', custom_objects={'dice_coef': dice_coef,'dice_coef_loss': dice_coef_loss}) 
-scar_yz_model = load_model('scar_yz2.hdf5', custom_objects={'dice_coef': dice_coef,'dice_coef_loss': dice_coef_loss}) 
+scar_xy_model = load_model('segment_scar_xy.hdf5', custom_objects={'dice_coef': dice_coef,'dice_coef_loss': dice_coef_loss})
+scar_xz_model = load_model('segment_scar_xz.hdf5', custom_objects={'dice_coef': dice_coef,'dice_coef_loss': dice_coef_loss}) 
+scar_yz_model = load_model('segment_scar_yz.hdf5', custom_objects={'dice_coef': dice_coef,'dice_coef_loss': dice_coef_loss}) 
 #%%
 
 
@@ -103,8 +80,7 @@ def model_xy_evaluate(data,mask):
         
     return()
     
-    
-    
+     
     
 def model_xz_evaluate(data,mask):
         
@@ -258,9 +234,7 @@ def Create_XZ_data(lge,scar):
     
      
     
-    
 def Create_YZ_data(lge,scar):
-    
     
     lge_norm = numpy.zeros((x,y,z))
     for slice_no in range (x):
@@ -305,8 +279,7 @@ def Create_YZ_data(lge,scar):
     return()
     
     
-#%% Create test dataset including test images and their corresponding masks
-
+#%% Create test dataset and test unseen images.
 x_unet = 256
 y_unet = 256
 dsc_total =[]
@@ -375,14 +348,8 @@ for n in range(18,34):
         seg_clean = scipy.ndimage.morphology.binary_dilation(seg_clean, iterations=1)   
         seg_clean = seg_clean*1    
         myo_clean[:,:,page] = seg_clean
-        '''
-        myo_slc = numpy.array(myo_slc, bool)
-        myo_slc = morphology.remove_small_objects(myo_slc,1) 
-        myo_slc = myo_slc*1 
-        '''
+        
         myo_slc = scipy.ndimage.morphology.binary_dilation(myo_slc, iterations=3)   
-        #myo_slc = scipy.ndimage.morphology.binary_erosion(myo_slc)
-        #seg_clean = scipy.ndimage.morphology.binary_fill_holes(seg_clean) 
         myo_slc = myo_slc*1    
         gt_clean[:,:,page] = myo_slc
         
@@ -402,11 +369,9 @@ for n in range(18,34):
     vol_manual = numpy.append(vol_manual,numpy.sum(gt_clean)*1.3*0.625*0.625/1000)
     vol_seg = numpy.append(vol_seg,numpy.sum(myo_clean)*1.3*0.625*0.625/1000)     
     sec =  numpy.append(sec,(time.time() - start_time)) 
-    #slice_no = slice_no + myo_clean.shape[0] + myo_clean.shape[1] + myo_clean.shape[2]
+    slice_no = slice_no + myo_clean.shape[0] + myo_clean.shape[1] + myo_clean.shape[2]
 
-    
-    #new_img = nib.Nifti1Image(myo_clean, data_scar.affine, data_scar.header)
-    #nib.save(new_img, "scar_%d.nii.gz"%n) 
+   
  
 #%   
 print('Mean Values:')    
@@ -420,7 +385,4 @@ print('DI is :', round(numpy.median(dsc_total),2) , '+', round(numpy.std(dsc_tot
 print('Acc. is :', round(numpy.median(acc_total),2), '+', round(numpy.std(acc_total),2))
 print('Precision is :', round(numpy.median(prec_total),2), '+', round(numpy.std(prec_total),2))
 print('Recall is :', round(numpy.median(rec_total),2), '+', round(numpy.std(rec_total),2))
-
-
-
-       
+  
